@@ -2464,10 +2464,10 @@ int apk_db_run_script(struct apk_database *db, const char *hook_type, const char
 	}
 	if (pid == 0) {
 		umask(0022);
-		if (fchdir(db->root_fd) != 0) script_panic("fchdir");
+		if (fchdir(apk_ctx_fd_dest(ac)) != 0) script_panic("fchdir");
 		if (!(ac->flags & APK_NO_CHROOT)) {
 			if (db->need_unshare && unshare_mount_namespace(db) < 0) script_panic("unshare");
-			if (ac->root_set && chroot(".") != 0) script_panic("chroot");
+			if ((ac->root_set || ac->install_root) && chroot(".") != 0) script_panic("chroot");
 		}
 		char **envp = &ac->script_environment->item[0];
 		execve(path, argv, envp);

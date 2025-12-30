@@ -269,6 +269,10 @@ The following options are available for all commands.
 *--root*, *-p* _ROOT_
 	Manage file system at _ROOT_.
 
+*--install-root* _INSTALL_ROOT_
+	Install package contents and run scripts in _INSTALL_ROOT_ instead of
+	_ROOT_. APK state (database, world, keys) remains in _ROOT_.
+
 *--root-tmpfs*[=_AUTO_]
 	Specify if the _ROOT_ is a temporary filesystem. Defaults to *auto* which
 	determines the filesystem type automatically.

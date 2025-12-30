@@ -68,6 +68,7 @@ struct apk_ctx {
 	struct apk_out out;
 	struct adb_compression_spec compspec;
 	const char *root;
+	const char *install_root;
 	const char *keys_dir;
 	const char *cache_dir;
 	const char *repositories_file;

@@ -1,0 +1,113 @@
+name: Build Static apk-tools
+
+on:
+  push:
+    branches: [vellum]
+  pull_request:
+    branches: [vellum]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [aarch64, armv7]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build static apk for ${{ matrix.arch }}
+        run: |
+          PLATFORM="linux/arm64"
+          if [ "${{ matrix.arch }}" = "armv7" ]; then
+            PLATFORM="linux/arm/v7"
+          fi
+
+          docker run --rm --platform "$PLATFORM" \
+            -v "$PWD:/src:Z" \
+            alpine:edge \
+            sh -c '
+              set -ex
+
+              apk add --no-cache \
+                meson \
+                gcc \
+                musl-dev \
+                linux-headers \
+                make \
+                openssl-dev \
+                openssl-libs-static \
+                zlib-dev \
+                zlib-static \
+                zstd-dev \
+                zstd-static \
+                lua5.3-dev \
+                lua5.3-libs
+
+              cd /src
+
+              meson setup build \
+                -Ddefault_library=static \
+                -Dprefer_static=true \
+                "-Dc_link_args=-static" \
+                -Dhelp=enabled \
+                -Dlua=disabled \
+                -Dlua_version=5.3 \
+                -Dzstd=enabled \
+                -Ddocs=disabled \
+                -Dtests=disabled \
+                --auto-features=disabled
+
+              meson compile -C build
+
+              strip build/src/apk
+              cp build/src/apk /src/apk-${{ matrix.arch }}
+            '
+
+      - name: Verify static binary
+        run: file apk-${{ matrix.arch }}
+
+      - name: Upload apk binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.arch }}
+          path: apk-${{ matrix.arch }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/vellum' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Delete existing release if it exists
+          gh release delete "v$VERSION" --yes || true
+
+          # Create new release with binaries
+          gh release create "v$VERSION" \
+            --title "apk-tools $VERSION (vellum)" \
+            --notes "Static apk-tools $VERSION with --dest option for vellum" \
+            artifacts/apk-aarch64/apk-aarch64 \
+            artifacts/apk-armv7/apk-armv7

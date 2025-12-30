@@ -51,6 +51,7 @@ void apk_ctx_free(struct apk_ctx *ac)
 	apk_string_array_free(&ac->repository_list);
 	apk_string_array_free(&ac->arch_list);
 	apk_string_array_free(&ac->script_environment);
+	if (ac->dest_fd >= 0 && ac->dest_fd != ac->root_fd) close(ac->dest_fd);
 	if (ac->root_fd >= 0) close(ac->root_fd);
 	if (ac->out.log) fclose(ac->out.log);
 	apk_balloc_destroy(&ac->ba);
@@ -72,10 +73,12 @@ int apk_ctx_prepare(struct apk_ctx *ac)
 	if (!ac->root) ac->root = "/";
 	if (ac->cache_predownload) ac->cache_packages = 1;
 
-	if (!strcmp(ac->root, "/")) {
+	const char *script_root = ac->install_root ? ac->install_root : ac->root;
+	if (!strcmp(script_root, "/")) {
 		// No chroot needed if using system root
 		ac->flags |= APK_NO_CHROOT;
-
+	}
+	if (!strcmp(ac->root, "/")) {
 		// Check uvol availability
 		if (!ac->uvol) ac->uvol = "/usr/sbin/uvol";
 	} else {
@@ -94,7 +97,15 @@ int apk_ctx_prepare(struct apk_ctx *ac)
 		apk_err(&ac->out, "Unable to open root: %s", apk_error_str(errno));
 		return -errno;
 	}
-	ac->dest_fd = ac->root_fd;
+	if (ac->install_root) {
+		ac->dest_fd = openat(AT_FDCWD, ac->install_root, O_DIRECTORY | O_RDONLY | O_CLOEXEC);
+		if (ac->dest_fd < 0) {
+			apk_err(&ac->out, "Unable to open install-root: %s", apk_error_str(errno));
+			return -errno;
+		}
+	} else {
+		ac->dest_fd = ac->root_fd;
+	}
 
 	if (ac->open_flags & APK_OPENF_CREATE) {
 		uid_t uid = getuid();
