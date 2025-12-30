@@ -94,7 +94,15 @@ int apk_ctx_prepare(struct apk_ctx *ac)
 		apk_err(&ac->out, "Unable to open root: %s", apk_error_str(errno));
 		return -errno;
 	}
-	ac->dest_fd = ac->root_fd;
+	if (ac->dest) {
+		ac->dest_fd = openat(AT_FDCWD, ac->dest, O_DIRECTORY | O_RDONLY | O_CLOEXEC);
+		if (ac->dest_fd < 0) {
+			apk_err(&ac->out, "Unable to open dest: %s", apk_error_str(errno));
+			return -errno;
+		}
+	} else {
+		ac->dest_fd = ac->root_fd;
+	}
 
 	if (ac->open_flags & APK_OPENF_CREATE) {
 		uid_t uid = getuid();
