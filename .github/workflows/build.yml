@@ -95,6 +95,13 @@ jobs:
         with:
           path: artifacts
 
+      - name: Install lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Generate bash completion
+        run: |
+          LUA_PATH="src/?.lua;;" lua5.3 src/genhelp.lua --format=bash doc/apk*.8.scd > _apk
+
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,4 +117,5 @@ jobs:
             --title "apk-tools $VERSION (vellum)" \
             --notes "Static apk-tools $VERSION with --dest option for vellum" \
             artifacts/apk-aarch64/apk-aarch64 \
-            artifacts/apk-armv7/apk-armv7
+            artifacts/apk-armv7/apk-armv7 \
+            _apk
